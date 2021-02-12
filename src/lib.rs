@@ -786,29 +786,38 @@ where
 
         // All verts from all shapes are kept in a single buffer here in the canvas.
         // Drawable struct is used to describe the range of vertices each draw call will operate on
-        let mut offset = self.verts.len();
+
+        // Fill commands can have both fill and stroke vertices. Fill vertices are used to fill
+        // the body of the shape while stroke vertices are used to prodice antialiased edges
+
+        let fill_offset = self.verts.len();
+        let mut fill_verts = 0;
 
         for contour in &path_cache.contours {
-            let mut drawable = Drawable::default();
-
-            // Fill commands can have both fill and stroke vertices. Fill vertices are used to fill
-            // the body of the shape while stroke vertices are used to prodice antialiased edges
-
             if !contour.fill.is_empty() {
-                drawable.fill_verts = Some((offset, contour.fill.len()));
+                fill_verts += contour.fill.len();
                 self.verts.extend_from_slice(&contour.fill);
-                offset += contour.fill.len();
             }
+        }
 
+        let stroke_offset = self.verts.len();
+        let mut stroke_verts = 0;
+
+        for contour in &path_cache.contours {
             if !contour.stroke.is_empty() {
-                drawable.stroke_verts = Some((offset, contour.stroke.len()));
+                stroke_verts += contour.stroke.len();
                 self.verts.extend_from_slice(&contour.stroke);
-                offset += contour.stroke.len();
             }
+        }
 
+        if fill_verts > 0 || stroke_verts > 0 {
+            let mut drawable = Drawable::default();
+            drawable.fill_verts = Some((fill_offset, fill_verts));
+            drawable.stroke_verts = Some((stroke_offset, stroke_verts));
             cmd.drawables.push(drawable);
         }
 
+        let offset = self.verts.len();
         if let CommandType::ConcaveFill { .. } = cmd.cmd_type {
             // Concave shapes are first filled by writing to a stencil buffer and then drawing a quad
             // over the shape area with stencil test enabled to produce the final fill. These are
@@ -921,17 +930,19 @@ where
 
         // All verts from all shapes are kept in a single buffer here in the canvas.
         // Drawable struct is used to describe the range of vertices each draw call will operate on
-        let mut offset = self.verts.len();
+        let offset = self.verts.len();
+        let mut stroke_verts = 0;
 
         for contour in &path_cache.contours {
-            let mut drawable = Drawable::default();
-
             if !contour.stroke.is_empty() {
-                drawable.stroke_verts = Some((offset, contour.stroke.len()));
+                stroke_verts += contour.stroke.len();
                 self.verts.extend_from_slice(&contour.stroke);
-                offset += contour.stroke.len();
             }
+        }
 
+        if stroke_verts > 0 {
+            let mut drawable = Drawable::default();
+            drawable.stroke_verts = Some((offset, stroke_verts));
             cmd.drawables.push(drawable);
         }
 
